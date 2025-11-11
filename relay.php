@@ -1,29 +1,42 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Content-Type: application/json');
 
-$url = 'https://cloud.dpd.com/api/v1/parcelshopfinder/postcode?country=DE&zipcode=10115';
+// Odczyt danych z POST
+$url = $_POST['url'] ?? 'https://cloud.dpd.com/api/v1/setOrder';
+$postData = $_POST['data'] ?? '{}';
+$partnerName = $_POST['partner_name'] ?? '';
+$partnerToken = $_POST['partner_token'] ?? '';
+$userId = $_POST['user_id'] ?? '';
+$userToken = $_POST['user_token'] ?? '';
 
+// Przygotowanie nagłówków
+$headers = [
+    'Content-Type: application/json',
+];
+
+// Inicjalizacja cURL
 $ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 25,
-    CURLOPT_SSL_VERIFYPEER => true,
-    CURLOPT_SSL_VERIFYHOST => 2,
-]);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
+// Wykonanie
 $response = curl_exec($ch);
 $info = curl_getinfo($ch);
 $error = curl_error($ch);
 curl_close($ch);
 
+// Wynik
 echo json_encode([
     'success' => empty($error),
     'url' => $url,
-    'http_code' => $info['http_code'],
-    'time' => $info['total_time'],
+    'http_code' => $info['http_code'] ?? 0,
+    'time' => $info['total_time'] ?? 0,
     'error' => $error,
-    'preview' => substr($response, 0, 400)
-], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+    'response' => $response,
+    'curl_info' => $info,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+?>
