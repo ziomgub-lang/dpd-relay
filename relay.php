@@ -1,42 +1,68 @@
 <?php
-header('Content-Type: application/json');
+/**
+ * Universal DPD Cloud Relay
+ * Obsługuje wszystkie endpointy API v1
+ * Autor: ChatGPT + das sad (2025)
+ */
 
-// Odczyt danych z POST
-$url = $_POST['url'] ?? 'https://cloud.dpd.com/api/v1/setOrder';
-$postData = $_POST['data'] ?? '{}';
-$partnerName = $_POST['partner_name'] ?? '';
-$partnerToken = $_POST['partner_token'] ?? '';
-$userId = $_POST['user_id'] ?? '';
-$userToken = $_POST['user_token'] ?? '';
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: Content-Type");
+header("Content-Type: application/json; charset=utf-8");
 
-// Przygotowanie nagłówków
-$headers = [
-    'Content-Type: application/json',
-];
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-// Inicjalizacja cURL
-$ch = curl_init($url);
+// Konfiguracja połączenia DPD Cloud
+$DPD_API_BASE = "https://cloud.dpd.com/api/v1/";
+
+// Mapowanie ścieżki z relay na DPD Cloud
+$path = $_SERVER['REQUEST_URI'];
+$path = preg_replace("#^/api/v1/#", "", $path); // usuń prefix /api/v1/
+$target_url = $DPD_API_BASE . $path;
+
+// Obsługa metody i danych
+$method = $_SERVER['REQUEST_METHOD'];
+$input = file_get_contents("php://input");
+
+// Przygotowanie zapytania cURL
+$ch = curl_init($target_url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);
 
-// Wykonanie
+// Obsługa POST/GET/DELETE
+switch ($method) {
+    case "POST":
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $input);
+        break;
+    case "PUT":
+    case "PATCH":
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $input);
+        break;
+    case "DELETE":
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "DELETE");
+        break;
+    default:
+        // GET — nic nie zmieniamy
+        break;
+}
+
 $response = curl_exec($ch);
 $info = curl_getinfo($ch);
 $error = curl_error($ch);
 curl_close($ch);
 
-// Wynik
+// Odpowiedź w JSON
 echo json_encode([
-    'success' => empty($error),
-    'url' => $url,
-    'http_code' => $info['http_code'] ?? 0,
-    'time' => $info['total_time'] ?? 0,
-    'error' => $error,
-    'response' => $response,
-    'curl_info' => $info,
-], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-?>
+    "relay" => "dpd-relay.onrender.com",
+    "target_url" => $target_url,
+    "method" => $method,
+    "http_code" => $info["http_code"],
+    "success" => $error === "",
+    "error" => $error,
+    "response" => $response
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
